@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.*;
 
 class MainTest {
-
-
     @ParameterizedTest(name = "{index} Typechecking well-typed program {0}")
     @ValueSource(strings = {
             "tests/well-typed/factorial.stella",

@@ -8,6 +8,9 @@ public class TypeCheck
     public static void typecheckProgram(Program program) throws Exception
     {
         VisitTypeCheck v = new VisitTypeCheck();
-        program.accept(v.new ProgramVisitor<>(), null /* initial context information*/);
+        var res = program.accept(v.new ProgramVisitor<>(), null /* initial context information*/);
+        if (res != null) {
+            throw new Exception((String) res);
+        }
     }
 }

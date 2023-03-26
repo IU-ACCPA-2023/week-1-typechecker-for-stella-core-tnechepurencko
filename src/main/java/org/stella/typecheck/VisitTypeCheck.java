@@ -2,6 +2,8 @@
 
 package org.stella.typecheck;
 
+import org.syntax.stella.Absyn.*;
+
 /*** Visitor Design Pattern for TypeCheck. ***/
 
 /* This implements the common visitor design pattern.
@@ -16,12 +18,15 @@ public class VisitTypeCheck
   {
     public R visit(org.syntax.stella.Absyn.AProgram p, A arg)
     { /* Code for AProgram goes here */
-      p.languagedecl_.accept(new LanguageDeclVisitor<R,A>(), arg);
+      p.languagedecl_.accept(new LanguageDeclVisitor<R,A>(), arg); // TODO check language core
       for (org.syntax.stella.Absyn.Extension x: p.listextension_) {
         x.accept(new ExtensionVisitor<R,A>(), arg);
       }
       for (org.syntax.stella.Absyn.Decl x: p.listdecl_) {
-        x.accept(new DeclVisitor<R,A>(), arg);
+        var res = x.accept(new DeclVisitor<R,A>(), arg);
+        if (res != null) {
+          return res;
+        }
       }
       return null;
     }
@@ -49,6 +54,18 @@ public class VisitTypeCheck
     { /* Code for DeclFun goes here */
       System.out.println("Visiting declaration of function " + p.stellaident_);
 
+      if (p.returntype_ instanceof SomeReturnType) {
+        SomeReturnType someReturnType = (SomeReturnType) p.returntype_;
+        if (someReturnType.type_ instanceof TypeFun && !(p.expr_ instanceof Abstraction) && !(p.expr_ instanceof Var)) { // TODO CHECK TYPE OF VAR
+          return (R) ("TypeError in DeclVisitor.visit(): expected Abstraction, got " + p.expr_.getClass());
+        } else if (someReturnType.type_ instanceof TypeNat) {
+          if (!(p.expr_ instanceof NatRec) && !(p.expr_ instanceof Succ) && // TODO maybe not NatRec but ConstInt
+                  !(p.expr_ instanceof Var) && !(p.expr_ instanceof Application)) { // TODO CHECK TYPE OF APP // TODO CHECK TYPE OF VAR
+            return (R) ("TypeError in DeclVisitor.visit(): expected NatRec, got " + p.expr_.getClass());
+          }
+        }
+      }
+
       for (org.syntax.stella.Absyn.Annotation x: p.listannotation_) {
         x.accept(new AnnotationVisitor<R,A>(), arg);
       }
@@ -61,7 +78,10 @@ public class VisitTypeCheck
       for (org.syntax.stella.Absyn.Decl x: p.listdecl_) {
         x.accept(new DeclVisitor<R,A>(), arg);
       }
-      p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      var res = p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      if (res != null) {
+        return res;
+      }
       return null;
     }
     public R visit(org.syntax.stella.Absyn.DeclTypeAlias p, A arg)
@@ -125,9 +145,18 @@ public class VisitTypeCheck
   {
     public R visit(org.syntax.stella.Absyn.If p, A arg)
     { /* Code for If goes here */
-      p.expr_1.accept(new ExprVisitor<R,A>(), arg);
-      p.expr_2.accept(new ExprVisitor<R,A>(), arg);
-      p.expr_3.accept(new ExprVisitor<R,A>(), arg);
+      var res = p.expr_1.accept(new ExprVisitor<R,A>(), arg); // TODO if not bool
+      if (res != null) {
+        return res;
+      }
+      res = p.expr_2.accept(new ExprVisitor<R,A>(), arg);
+      if (res != null) {
+        return res;
+      }
+      res = p.expr_3.accept(new ExprVisitor<R,A>(), arg);
+      if (res != null) {
+        return res;
+      }
       return null;
     }
     public R visit(org.syntax.stella.Absyn.Let p, A arg)
@@ -277,7 +306,22 @@ public class VisitTypeCheck
     }
     public R visit(org.syntax.stella.Absyn.Succ p, A arg)
     { /* Code for Succ goes here */
-      p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      if (!(p.expr_ instanceof ConstInt) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var)) { // TODO CHECK TYPE OF VAR
+        if (p.expr_ instanceof If) {
+          If ifExpr = (If) p.expr_;
+          if (!(ifExpr.expr_2 instanceof Succ) && !(ifExpr.expr_2 instanceof ConstInt)) {
+            return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + ifExpr.expr_2.getClass());
+          } else if (!(ifExpr.expr_3 instanceof Succ) && !(ifExpr.expr_3 instanceof ConstInt)) {
+            return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + ifExpr.expr_2.getClass());
+          }
+        } else {
+          return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + p.expr_.getClass());
+        }
+      }
+      var res = p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      if (res != null) {
+        return res;
+      }
       return null;
     }
     public R visit(org.syntax.stella.Absyn.LogicNot p, A arg)
