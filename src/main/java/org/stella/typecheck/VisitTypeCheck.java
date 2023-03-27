@@ -24,7 +24,6 @@ public class VisitTypeCheck
   Stack<Expr> callsVars;
   Queue<Pair<String, Type>> abstractionParams;
   HashMap<String, Pair<String, Type>> functions;
-//  LinkedList<String> globalParams;
   HashMap<String, LinkedList<Type>> globalParams;
 
   public VisitTypeCheck() {
@@ -38,7 +37,7 @@ public class VisitTypeCheck
   {
     public R visit(org.syntax.stella.Absyn.AProgram p, A arg)
     { /* Code for AProgram goes here */
-      p.languagedecl_.accept(new LanguageDeclVisitor<R,A>(), arg); // TODO check language core
+      p.languagedecl_.accept(new LanguageDeclVisitor<R,A>(), arg);
       for (org.syntax.stella.Absyn.Extension x: p.listextension_) {
         x.accept(new ExtensionVisitor<R,A>(), arg);
       }
@@ -47,6 +46,7 @@ public class VisitTypeCheck
         if (res != null) {
           return res;
         }
+        params = new HashMap<>();
 
         if (x instanceof DeclFun) {
           AParamDecl apd = (AParamDecl) ((DeclFun) x).listparamdecl_.get(0);
@@ -134,20 +134,17 @@ public class VisitTypeCheck
         return res;
       }
 
-      // TODO CHECK PARAMS
-//      HashMap<String, Type> params = new HashMap<>();
       for (org.syntax.stella.Absyn.ParamDecl x: p.listparamdecl_) {
-        AParamDecl s = (AParamDecl) x;
         params.put(((AParamDecl) x).stellaident_, ((AParamDecl) x).type_);
       }
 
       if (p.returntype_ instanceof SomeReturnType) {
         SomeReturnType someReturnType = (SomeReturnType) p.returntype_;
-        if (someReturnType.type_ instanceof TypeFun && !(p.expr_ instanceof Abstraction) && !(p.expr_ instanceof Var)) { // TODO CHECK TYPE OF VAR
+        if (someReturnType.type_ instanceof TypeFun && !(p.expr_ instanceof Abstraction) && !(p.expr_ instanceof Var)) {
           return (R) ("TypeError in DeclVisitor.visit(): expected Abstraction, got " + p.expr_.getClass());
         } else if (someReturnType.type_ instanceof TypeNat) {
-          if (!(p.expr_ instanceof NatRec) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var) && !(p.expr_ instanceof Application)) { // TODO maybe not NatRec but ConstInt // TODO CHECK TYPE OF VAR
-            if (p.expr_ instanceof Application) {// TODO CHECK TYPE OF APP // TODO CHECK TYPE OF VAR
+          if (!(p.expr_ instanceof NatRec) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var) && !(p.expr_ instanceof Application)) {
+            if (p.expr_ instanceof Application) {
               return (R) ("TypeError in DeclVisitor.visit(): expected NatRec, got " + p.expr_.getClass());
             }
           }
@@ -234,7 +231,7 @@ public class VisitTypeCheck
   {
     public R visit(org.syntax.stella.Absyn.If p, A arg)
     { /* Code for If goes here */
-      var res = p.expr_1.accept(new ExprVisitor<R,A>(), arg); // TODO if not bool
+      var res = p.expr_1.accept(new ExprVisitor<R,A>(), arg);
       if (res != null) {
         return res;
       }
@@ -302,6 +299,7 @@ public class VisitTypeCheck
 //      HashMap<String, Type> tempParams = new HashMap<>();
       for (org.syntax.stella.Absyn.ParamDecl x: p.listparamdecl_) {
         AParamDecl s = (AParamDecl) x;
+        params.put(s.stellaident_, s.type_);
         abstractionParams.add(new Pair<>(s.stellaident_, s.type_));
 //        tempParams.put(((AParamDecl) x).stellaident_, ((AParamDecl) x).type_);
         x.accept(new ParamDeclVisitor<R,A>(), arg);
@@ -324,7 +322,7 @@ public class VisitTypeCheck
       } else if (!callsVars.empty()) {
         var cv = callsVars.peek();
         var ap = abstractionParams.peek();
-        if (ap.b instanceof TypeNat && !(cv instanceof ConstInt) && !(cv instanceof Var)) { // TODO checkvar
+        if (ap.b instanceof TypeNat && !(cv instanceof ConstInt) && !(cv instanceof Var)) {
           return (R) ("TypeError in DeclVisitor.visit(): expected ConstInt, got " + cv.getClass());
         } else if (ap.b instanceof TypeBool && !((cv instanceof ConstTrue) || (cv instanceof ConstFalse))) {
           if (cv instanceof Abstraction && !(((Abstraction) cv).expr_ instanceof If)) {
@@ -477,7 +475,7 @@ public class VisitTypeCheck
     }
     public R visit(org.syntax.stella.Absyn.Succ p, A arg)
     { /* Code for Succ goes here */
-      if (!(p.expr_ instanceof ConstInt) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var)) { // TODO CHECK TYPE OF VAR
+      if (!(p.expr_ instanceof ConstInt) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var)) {
         if (p.expr_ instanceof If) {
           If ifExpr = (If) p.expr_;
           if (!(ifExpr.expr_2 instanceof Succ) && !(ifExpr.expr_2 instanceof ConstInt)) {

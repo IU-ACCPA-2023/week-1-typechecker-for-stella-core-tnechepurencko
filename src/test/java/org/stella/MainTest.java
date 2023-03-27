@@ -57,7 +57,7 @@ class MainTest {
 
         boolean typecheckerFailed = false;
         try {
-            Main.main(args); // TODO: check that if it fail then there is a type error actually, and not a problem with implementation
+            Main.main(args);
         } catch (Exception e) {
             System.out.println("Type Error: " + e.getMessage());
             typecheckerFailed = true;
