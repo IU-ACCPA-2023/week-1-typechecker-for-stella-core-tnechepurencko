@@ -97,6 +97,10 @@ public class VisitTypeCheck
             expr = ((Application) expr).expr_;
           } else if (expr instanceof NatRec && (type instanceof TypeNat || type instanceof TypeBool)) {
             return null;
+          } else if (expr instanceof Succ && type instanceof TypeNat) {
+            return null;
+          } else if (expr instanceof If && type instanceof TypeBool) {
+            return null;
           } else if (expr instanceof Var) {
             if (!(((Var) expr).stellaident_.equals(localVar.a)) && !(globalParams.contains(((Var) expr).stellaident_))) {
               return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable" + ((Var) expr).stellaident_);
