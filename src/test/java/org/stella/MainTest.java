@@ -26,13 +26,6 @@ class MainTest {
 
     @ParameterizedTest(name = "{index} Typechecking ill-typed program {0}")
     @ValueSource(strings = {
-//            "tests/well-typed/factorial.stella", // TODO DELETE
-//            "tests/well-typed/squares.stella", // TODO DELETE
-//            "tests/well-typed/higher-order-1.stella", // TODO DELETE
-//            "tests/well-typed/increment_twice.stella", // TODO DELETE
-//            "tests/well-typed/logical-operators.stella", // TODO DELETE
-
-//            "tests/ill-typed/bad-squares-2.stella",  // TODO DELETE
             "tests/ill-typed/applying-non-function-1.stella",
             "tests/ill-typed/applying-non-function-2.stella",
             "tests/ill-typed/applying-non-function-3.stella",
