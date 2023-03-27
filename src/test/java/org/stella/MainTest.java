@@ -61,5 +61,3 @@ class MainTest {
         // System.setIn(original); // dead code
     }
 }
-
-// TODO DELETE LOCAL VARIABLES
