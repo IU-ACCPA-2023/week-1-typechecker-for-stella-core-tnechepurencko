@@ -88,7 +88,8 @@ public class VisitTypeCheck
           type = ((TypeFun) type).type_;
           localReturn.add(type);
         }
-        globalParams.put(p.stellaident_, localReturn);
+
+        globalParams.put(p.stellaident_, new LinkedList<>(localReturn));
 
         Expr expr = p.expr_;
         while (!localReturn.isEmpty()) {
