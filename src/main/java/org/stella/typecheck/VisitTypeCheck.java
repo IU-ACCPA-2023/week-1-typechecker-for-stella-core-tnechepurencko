@@ -2,7 +2,13 @@
 
 package org.stella.typecheck;
 
+import org.antlr.v4.runtime.misc.Pair;
 import org.syntax.stella.Absyn.*;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.Stack;
 
 /*** Visitor Design Pattern for TypeCheck. ***/
 
@@ -14,6 +20,19 @@ import org.syntax.stella.Absyn.*;
 
 public class VisitTypeCheck
 {
+  HashMap<String, Type> params;
+  Stack<Expr> callsVars;
+  Queue<Pair<String, Type>> abstractionParams;
+  HashMap<String, Pair<String, Type>> functions;
+  LinkedList<String> globalParams;
+
+  public VisitTypeCheck() {
+    this.params = new HashMap<>();
+    this.callsVars = new Stack<>();
+    this.abstractionParams = new LinkedList<>();
+    this.functions = new HashMap<>();
+    this.globalParams = new LinkedList<>();
+  }
   public class ProgramVisitor<R,A> implements org.syntax.stella.Absyn.Program.Visitor<R,A>
   {
     public R visit(org.syntax.stella.Absyn.AProgram p, A arg)
@@ -26,6 +45,12 @@ public class VisitTypeCheck
         var res = x.accept(new DeclVisitor<R,A>(), arg);
         if (res != null) {
           return res;
+        }
+
+        if (x instanceof DeclFun) {
+          AParamDecl apd = (AParamDecl) ((DeclFun) x).listparamdecl_.get(0);
+          Pair parameters = new Pair(apd.stellaident_, apd.type_);
+          functions.put(((DeclFun) x).stellaident_, parameters);
         }
       }
       return null;
@@ -50,18 +75,69 @@ public class VisitTypeCheck
   }
   public class DeclVisitor<R,A> implements org.syntax.stella.Absyn.Decl.Visitor<R,A>
   {
+    public R checkFunctionReturn(org.syntax.stella.Absyn.DeclFun p, A arg) {
+      Queue<Type> localReturn = new LinkedList<>();
+      AParamDecl var = (AParamDecl) p.listparamdecl_.get(0);
+      Pair<String, Type> localVar = new Pair<>(var.stellaident_, var.type_);
+
+      if (p.returntype_ instanceof SomeReturnType) {
+        Type type = ((SomeReturnType) p.returntype_).type_;
+        localReturn.add(type);
+        while (type instanceof TypeFun) {
+          type = ((TypeFun) type).type_;
+          localReturn.add(type);
+        }
+
+        Expr expr = p.expr_;
+        while (!localReturn.isEmpty()) {
+          type = localReturn.remove();
+          if (expr instanceof Abstraction && type instanceof TypeFun) {
+            expr = ((Abstraction) expr).expr_;
+          } else if (expr instanceof Application) {
+            expr = ((Application) expr).expr_;
+          } else if (expr instanceof NatRec && (type instanceof TypeNat || type instanceof TypeBool)) {
+            return null;
+          } else if (expr instanceof Var) {
+            if (!(((Var) expr).stellaident_.equals(localVar.a)) && !(globalParams.contains(((Var) expr).stellaident_))) {
+              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable" + ((Var) expr).stellaident_);
+            }
+          } else {
+            return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): expected " + type.getClass() + ", got " + expr.getClass());
+          }
+        }
+
+      }
+
+
+      return null;
+    }
+
     public R visit(org.syntax.stella.Absyn.DeclFun p, A arg)
     { /* Code for DeclFun goes here */
       System.out.println("Visiting declaration of function " + p.stellaident_);
+
+      var res = checkFunctionReturn(p, null);
+      if (res != null) {
+        return res;
+      }
+      globalParams.add(p.stellaident_);
+
+      // TODO CHECK PARAMS
+//      HashMap<String, Type> params = new HashMap<>();
+      for (org.syntax.stella.Absyn.ParamDecl x: p.listparamdecl_) {
+        AParamDecl s = (AParamDecl) x;
+        params.put(((AParamDecl) x).stellaident_, ((AParamDecl) x).type_);
+      }
 
       if (p.returntype_ instanceof SomeReturnType) {
         SomeReturnType someReturnType = (SomeReturnType) p.returntype_;
         if (someReturnType.type_ instanceof TypeFun && !(p.expr_ instanceof Abstraction) && !(p.expr_ instanceof Var)) { // TODO CHECK TYPE OF VAR
           return (R) ("TypeError in DeclVisitor.visit(): expected Abstraction, got " + p.expr_.getClass());
         } else if (someReturnType.type_ instanceof TypeNat) {
-          if (!(p.expr_ instanceof NatRec) && !(p.expr_ instanceof Succ) && // TODO maybe not NatRec but ConstInt
-                  !(p.expr_ instanceof Var) && !(p.expr_ instanceof Application)) { // TODO CHECK TYPE OF APP // TODO CHECK TYPE OF VAR
-            return (R) ("TypeError in DeclVisitor.visit(): expected NatRec, got " + p.expr_.getClass());
+          if (!(p.expr_ instanceof NatRec) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var) && !(p.expr_ instanceof Application)) { // TODO maybe not NatRec but ConstInt // TODO CHECK TYPE OF VAR
+            if (p.expr_ instanceof Application) {// TODO CHECK TYPE OF APP // TODO CHECK TYPE OF VAR
+              return (R) ("TypeError in DeclVisitor.visit(): expected NatRec, got " + p.expr_.getClass());
+            }
           }
         }
       }
@@ -78,12 +154,13 @@ public class VisitTypeCheck
       for (org.syntax.stella.Absyn.Decl x: p.listdecl_) {
         x.accept(new DeclVisitor<R,A>(), arg);
       }
-      var res = p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      res = p.expr_.accept(new ExprVisitor<R,A>(), arg);
       if (res != null) {
         return res;
       }
       return null;
     }
+
     public R visit(org.syntax.stella.Absyn.DeclTypeAlias p, A arg)
     { /* Code for DeclTypeAlias goes here */
       //p.stellaident_;
@@ -210,10 +287,44 @@ public class VisitTypeCheck
     }
     public R visit(org.syntax.stella.Absyn.Abstraction p, A arg)
     { /* Code for Abstraction goes here */
+//      HashMap<String, Type> tempParams = new HashMap<>();
       for (org.syntax.stella.Absyn.ParamDecl x: p.listparamdecl_) {
+        AParamDecl s = (AParamDecl) x;
+        abstractionParams.add(new Pair<>(s.stellaident_, s.type_));
+//        tempParams.put(((AParamDecl) x).stellaident_, ((AParamDecl) x).type_);
         x.accept(new ParamDeclVisitor<R,A>(), arg);
       }
-      p.expr_.accept(new ExprVisitor<R,A>(), arg);
+
+      if (p.expr_ instanceof Application && ((Application) p.expr_).expr_ instanceof Var) {
+        Var v = (Var) ((Application) p.expr_).expr_;
+        for (var pair:abstractionParams) {
+          if (pair.a.equals(v.stellaident_) && !(pair.b instanceof TypeFun)) {
+            return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + pair.b.getClass());
+          }
+        }
+      }
+
+//      abstractionParams.push(tempParams);
+
+      var res = p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      if (res != null) {
+        return res;
+      } else if (!callsVars.empty()) {
+        var cv = callsVars.peek();
+        var ap = abstractionParams.peek();
+        if (ap.b instanceof TypeNat && !(cv instanceof ConstInt) && !(cv instanceof Var)) { // TODO checkvar
+          return (R) ("TypeError in DeclVisitor.visit(): expected ConstInt, got " + cv.getClass());
+        } else if (ap.b instanceof TypeBool && !((cv instanceof ConstTrue) || (cv instanceof ConstFalse))) {
+          if (cv instanceof Abstraction && !(((Abstraction) cv).expr_ instanceof If)) {
+            return (R) ("TypeError in DeclVisitor.visit(): expected TypeBool, got " + cv.getClass());
+          }
+        }
+      }
+
+      abstractionParams.remove();
+      if (!callsVars.empty()) {
+        callsVars.pop();
+      }
       return null;
     }
     public R visit(org.syntax.stella.Absyn.Tuple p, A arg)
@@ -275,11 +386,60 @@ public class VisitTypeCheck
       p.expr_2.accept(new ExprVisitor<R,A>(), arg);
       return null;
     }
+
+    public void addParams(org.syntax.stella.Absyn.Application p) {
+      Expr expr = p.listexpr_.get(0);
+      if (expr instanceof Abstraction) {
+        AParamDecl apd = (AParamDecl) ((Abstraction) expr).listparamdecl_.get(0);
+        params.put(apd.stellaident_, apd.type_);
+      }
+    }
+
     public R visit(org.syntax.stella.Absyn.Application p, A arg)
     { /* Code for Application goes here */
-      p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      callsVars.push(p.listexpr_.get(0));
+      addParams(p);
+
+      if (p.expr_ instanceof Var) {
+        String name = ((Var)p.expr_).stellaident_;
+        if (params.containsKey(name) && !(params.get(name) instanceof TypeFun)) { //&& !(params.get(name) instanceof TypeFun)
+          return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + params.get(name).getClass());
+        }
+      } else if (p.expr_ instanceof Succ) {
+        return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + p.expr_.getClass());
+      }
+
+      if (p.expr_ instanceof Var) {
+        if (functions.containsKey(((Var)p.expr_).stellaident_)) {
+          Type type = functions.get(((Var)p.expr_).stellaident_).b;
+          if (type instanceof TypeFun) {
+            var argOfInnerFun = ((TypeFun) type).listtype_.get(0);
+            if (p.listexpr_.get(0) instanceof Abstraction) {
+              if (((Abstraction)p.listexpr_.get(0)).listparamdecl_.get(0) instanceof AParamDecl) {
+                AParamDecl apd = (AParamDecl) ((Abstraction)p.listexpr_.get(0)).listparamdecl_.get(0);
+                if (apd.type_.getClass() != argOfInnerFun.getClass()) {
+                  String ret = "TypeError in DeclVisitor.visit(): expected" + apd.type_.getClass() + ", got" + argOfInnerFun.getClass();
+                  return (R) (ret);
+                }
+              }
+            }
+          }
+        }
+      }
+
+
+      var res = p.expr_.accept(new ExprVisitor<R,A>(), arg);
+      if (res != null) {
+        return res;
+      } else if (p.expr_ instanceof Abstraction && callsVars.size() != 0) {
+        return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun as a return type");
+      }
+
       for (org.syntax.stella.Absyn.Expr x: p.listexpr_) {
-        x.accept(new ExprVisitor<R,A>(), arg);
+        res = x.accept(new ExprVisitor<R,A>(), arg);
+        if (res != null) {
+          return res;
+        }
       }
       return null;
     }
@@ -390,7 +550,17 @@ public class VisitTypeCheck
     }
     public R visit(org.syntax.stella.Absyn.Var p, A arg)
     { /* Code for Var goes here */
-      //p.stellaident_;
+      if (!params.containsKey(p.stellaident_) && !globalParams.contains(p.stellaident_)) {
+        return (R) ("TypeError in ExprVisitor.visit(): unknown variable " + p.stellaident_);
+      }
+//      if (functions.containsKey(p.stellaident_)) {
+//        Type type = functions.get(p.stellaident_).b;
+//        if (type instanceof TypeFun) {
+//          var argOfInnerFun = ((TypeFun) type).listtype_.get(0);
+//          if (!(p.))
+//        }
+//
+//      }
       return null;
     }
   }
