@@ -76,6 +76,14 @@ public class VisitTypeCheck
   }
   public class DeclVisitor<R,A> implements org.syntax.stella.Absyn.Decl.Visitor<R,A>
   {
+    public R checkNatRec(org.syntax.stella.Absyn.NatRec p, Type expectedType) {
+//      Abstraction expr = (Abstraction) p.expr_3;
+//      Application app = (Application) ((Abstraction) expr.expr_).expr_;
+//      LinkedList<Type> funReturn = globalParams.get(((Var) app.expr_).stellaident_);
+//      app = (Application) app.listexpr_.get(0);
+      return null;
+    }
+
     public R checkFunctionReturn(org.syntax.stella.Absyn.DeclFun p, A arg) {
       LinkedList<Type> localReturn = new LinkedList<>();
       AParamDecl var = (AParamDecl) p.listparamdecl_.get(0);
@@ -99,7 +107,8 @@ public class VisitTypeCheck
           } else if (expr instanceof Application) {
             expr = ((Application) expr).expr_;
           } else if (expr instanceof NatRec && (type instanceof TypeNat || type instanceof TypeBool)) {
-            return null;
+//            return null;
+            return checkNatRec((NatRec) expr, type);
           } else if (expr instanceof Succ && type instanceof TypeNat) {
             return null;
           } else if (expr instanceof If && type instanceof TypeBool) {
@@ -113,8 +122,6 @@ public class VisitTypeCheck
           }
         }
       }
-
-
       return null;
     }
 
@@ -431,7 +438,6 @@ public class VisitTypeCheck
           }
         }
       }
-
 
       var res = p.expr_.accept(new ExprVisitor<R,A>(), arg);
       if (res != null) {

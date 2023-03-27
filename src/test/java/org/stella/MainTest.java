@@ -32,7 +32,7 @@ class MainTest {
 //            "tests/well-typed/increment_twice.stella", // TODO DELETE
 //            "tests/well-typed/logical-operators.stella", // TODO DELETE
 
-            "tests/ill-typed/bad-squares-2.stella",  // TODO DELETE
+//            "tests/ill-typed/bad-squares-2.stella",  // TODO DELETE
             "tests/ill-typed/applying-non-function-1.stella",
             "tests/ill-typed/applying-non-function-2.stella",
             "tests/ill-typed/applying-non-function-3.stella",
