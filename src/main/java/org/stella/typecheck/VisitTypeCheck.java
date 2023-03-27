@@ -24,14 +24,15 @@ public class VisitTypeCheck
   Stack<Expr> callsVars;
   Queue<Pair<String, Type>> abstractionParams;
   HashMap<String, Pair<String, Type>> functions;
-  LinkedList<String> globalParams;
+//  LinkedList<String> globalParams;
+  HashMap<String, LinkedList<Type>> globalParams;
 
   public VisitTypeCheck() {
     this.params = new HashMap<>();
     this.callsVars = new Stack<>();
     this.abstractionParams = new LinkedList<>();
     this.functions = new HashMap<>();
-    this.globalParams = new LinkedList<>();
+    this.globalParams = new HashMap<>();
   }
   public class ProgramVisitor<R,A> implements org.syntax.stella.Absyn.Program.Visitor<R,A>
   {
@@ -76,7 +77,7 @@ public class VisitTypeCheck
   public class DeclVisitor<R,A> implements org.syntax.stella.Absyn.Decl.Visitor<R,A>
   {
     public R checkFunctionReturn(org.syntax.stella.Absyn.DeclFun p, A arg) {
-      Queue<Type> localReturn = new LinkedList<>();
+      LinkedList<Type> localReturn = new LinkedList<>();
       AParamDecl var = (AParamDecl) p.listparamdecl_.get(0);
       Pair<String, Type> localVar = new Pair<>(var.stellaident_, var.type_);
 
@@ -87,6 +88,7 @@ public class VisitTypeCheck
           type = ((TypeFun) type).type_;
           localReturn.add(type);
         }
+        globalParams.put(p.stellaident_, localReturn);
 
         Expr expr = p.expr_;
         while (!localReturn.isEmpty()) {
@@ -102,14 +104,13 @@ public class VisitTypeCheck
           } else if (expr instanceof If && type instanceof TypeBool) {
             return null;
           } else if (expr instanceof Var) {
-            if (!(((Var) expr).stellaident_.equals(localVar.a)) && !(globalParams.contains(((Var) expr).stellaident_))) {
+            if (!(((Var) expr).stellaident_.equals(localVar.a)) && !(globalParams.containsKey(((Var) expr).stellaident_))) {
               return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable" + ((Var) expr).stellaident_);
             }
           } else {
             return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): expected " + type.getClass() + ", got " + expr.getClass());
           }
         }
-
       }
 
 
@@ -124,7 +125,6 @@ public class VisitTypeCheck
       if (res != null) {
         return res;
       }
-      globalParams.add(p.stellaident_);
 
       // TODO CHECK PARAMS
 //      HashMap<String, Type> params = new HashMap<>();
@@ -554,7 +554,7 @@ public class VisitTypeCheck
     }
     public R visit(org.syntax.stella.Absyn.Var p, A arg)
     { /* Code for Var goes here */
-      if (!params.containsKey(p.stellaident_) && !globalParams.contains(p.stellaident_)) {
+      if (!params.containsKey(p.stellaident_) && !globalParams.containsKey(p.stellaident_)) {
         return (R) ("TypeError in ExprVisitor.visit(): unknown variable " + p.stellaident_);
       }
 //      if (functions.containsKey(p.stellaident_)) {
