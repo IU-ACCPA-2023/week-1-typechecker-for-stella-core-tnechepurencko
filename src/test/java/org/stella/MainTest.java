@@ -24,8 +24,8 @@ class MainTest {
 
     @ParameterizedTest(name = "{index} Typechecking ill-typed program {0}")
     @ValueSource(strings = {
-            "tests/pairs/ill-typed/bad-pairs-1.stella",
-            "tests/sum-types/ill-typed/bad-sum-types-1.stella"})
+            "tests/sum-types/ill-typed/bad-sum-types-1.stella",
+            "tests/pairs/ill-typed/bad-pairs-1.stella"})
     public void testIllTyped(String filepath) throws IOException, Exception {
         String[] args = new String[0];
         final InputStream original = System.in;

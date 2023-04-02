@@ -20,20 +20,26 @@ import java.util.Stack;
 
 public class VisitTypeCheck
 {
+  LinkedList<String> localParams;
   HashMap<String, Type> params;
   Stack<Expr> callsVars;
   Queue<Pair<String, Type>> abstractionParams;
   HashMap<String, Pair<String, Type>> functions;
   HashMap<String, LinkedList<Type>> globalParamsWithReturn;
   HashMap<String, Pair<String, Type>> globalParamsWithParams;
+  HashMap<String, LinkedList<Type>> localParamsWithReturn;
+  HashMap<String, Type> localParamsWithParams;
 
   public VisitTypeCheck() {
+    this.localParams = new LinkedList<>();
     this.params = new HashMap<>();
     this.callsVars = new Stack<>();
     this.abstractionParams = new LinkedList<>();
     this.functions = new HashMap<>();
     this.globalParamsWithReturn = new HashMap<>();
     this.globalParamsWithParams = new HashMap<>();
+    this.localParamsWithReturn = new HashMap<>();
+    this.localParamsWithParams = new HashMap<>();
   }
   public class ProgramVisitor<R,A> implements org.syntax.stella.Absyn.Program.Visitor<R,A>
   {
@@ -86,6 +92,126 @@ public class VisitTypeCheck
       return null;
     }
 
+    public R checkMatch(Match p, Type matchVarType, Type expectedType) {
+      if (p.expr_ instanceof Var && !params.containsKey(((Var)p.expr_).stellaident_) && !localParams.contains(((Var)p.expr_).stellaident_)) {
+        return (R) ("TypeError in DeclVisitor.checkMatch(): unknown variable " + ((Var)p.expr_).stellaident_);
+      } else if (!(matchVarType instanceof TypeSum)) {
+        return (R)("TypeError in DeclVisitor.checkMatch(): expected TypeSum, got " + matchVarType.getClass());
+      } else {
+        AMatchCase amc1 = (AMatchCase) p.listmatchcase_.get(0);
+        AMatchCase amc2 = (AMatchCase) p.listmatchcase_.get(1);
+
+        String name;
+        Type type;
+        Pair<String, Type> patternVar1;
+        Pair<String, Type> patternVar2;
+        if (amc1.pattern_ instanceof PatternInl && amc2.pattern_ instanceof PatternInr) {
+          name = ((PatternVar)((PatternInl)amc1.pattern_).pattern_).stellaident_;
+          type = ((TypeSum) matchVarType).type_1;
+          patternVar1 = new Pair<>(name, type);
+
+          name = ((PatternVar)((PatternInr)amc2.pattern_).pattern_).stellaident_;
+          type = ((TypeSum) matchVarType).type_2;
+          patternVar2 = new Pair<>(name, type);
+        } else if (amc1.pattern_ instanceof PatternInr && amc2.pattern_ instanceof PatternInl) {
+          name = ((PatternVar)((PatternInr)amc1.pattern_).pattern_).stellaident_;
+          type = ((TypeSum) matchVarType).type_2;
+          patternVar1 = new Pair<>(name, type);
+
+          name = ((PatternVar)((PatternInl)amc2.pattern_).pattern_).stellaident_;
+          type = ((TypeSum) matchVarType).type_1;
+          patternVar2 = new Pair<>(name, type);
+        } else {
+          return (R) ("TypeError in DeclVisitor.checkMatch(): both match cases have type " + amc1.pattern_.getClass());
+        }
+
+        localParams.push(patternVar1.a);
+        boolean tf = patternVar1.b instanceof TypeFun;
+        if (tf) {
+          LinkedList<Type> localReturn = new LinkedList<>();
+          Type localVar = ((TypeFun)patternVar1.b).listtype_.get(0);
+
+          Type t = ((TypeFun)patternVar1.b).type_;
+          localReturn.add(t);
+          while (t instanceof TypeFun) {
+            t = ((TypeFun) t).type_;
+            localReturn.add(t);
+          }
+          localParamsWithReturn.put(patternVar1.a, new LinkedList<>(localReturn));
+          localParamsWithParams.put(patternVar1.a, localVar);
+        }
+        var res = checkMatchCase(amc1, patternVar1, expectedType);
+        if (res != null) {
+          return res;
+        }
+        localParams.pop();
+        if (tf) {
+          localParamsWithReturn.remove(patternVar1.a);
+          localParamsWithParams.remove(patternVar1.a);
+        }
+
+        localParams.push(patternVar2.a);
+        tf = patternVar2.b instanceof TypeFun;
+        if (tf) {
+          LinkedList<Type> localReturn = new LinkedList<>();
+          Type localVar = ((TypeFun)patternVar2.b).listtype_.get(0);
+
+          Type t = ((TypeFun)patternVar2.b).type_;
+          localReturn.add(t);
+          while (t instanceof TypeFun) {
+            t = ((TypeFun) t).type_;
+            localReturn.add(t);
+          }
+          localParamsWithReturn.put(patternVar2.a, new LinkedList<>(localReturn));
+          localParamsWithParams.put(patternVar2.a, localVar);
+        }
+        res = checkMatchCase(amc2, patternVar2, expectedType);
+        if (res != null) {
+          return res;
+        }
+        localParams.pop();
+        if (tf) {
+          localParamsWithReturn.remove(patternVar2.a);
+          localParamsWithParams.remove(patternVar2.a);
+        }
+      }
+      return null;
+    }
+    public R checkMatchCase(AMatchCase p, Pair<String, Type> patternVar, Type expectedType) {
+      if (p.expr_ instanceof Match) {
+        return checkMatch((Match) p.expr_, patternVar.b, expectedType);
+      } else {
+        try {
+          if (!checkMatchExpr(p.expr_, expectedType)) {
+            return (R) ("TypeError in DeclVisitor.checkMatch(): expected " + expectedType.getClass() + ", got " + p.expr_.getClass());
+          }
+        } catch (Exception e) {
+          return (R) e.getMessage();
+        }
+      }
+      return null;
+    }
+
+    public boolean checkMatchExpr(Expr expr, Type expectedType) throws Exception {
+      if (expr instanceof Succ || expr instanceof ConstInt) {
+        return (expectedType instanceof TypeNat);
+      } else if (expr instanceof If) {
+        return checkMatchExpr(((If) expr).expr_2, expectedType) && checkMatchExpr(((If) expr).expr_3, expectedType);
+      } else if (expr instanceof ConstTrue || expr instanceof ConstFalse) {
+        return (expectedType instanceof TypeBool);
+      } else if (expr instanceof Tuple) {
+        return (expectedType instanceof TypeTuple);
+      } else if (expr instanceof Var && (params.containsKey(((Var) expr).stellaident_) || localParams.contains(((Var) expr).stellaident_))) {
+        Type t = params.get(((Var) expr).stellaident_);
+        return t.getClass() == expectedType.getClass();
+      } else if (expr instanceof Application) {
+        Type t = checkTupleApplication((Application) expr);
+        return (t.getClass() == expectedType.getClass());
+      } else {
+        return false;
+      }
+    }
+
     public R checkDotTuple(DotTuple p, Type expectedType) {
       if (p.expr_ instanceof Application) { // TODO p.expr_ instanceof Tuple or smth
         try {
@@ -104,9 +230,32 @@ public class VisitTypeCheck
     }
 
     public Type checkTupleApplication(Application p) throws Exception {
-      if (!globalParamsWithReturn.containsKey(((Var)p.expr_).stellaident_)) {
-        throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): unknown variable" + ((Var)p.expr_).stellaident_);
-      } else {
+      if (localParamsWithReturn.containsKey(((Var)p.expr_).stellaident_)) {
+        LinkedList<Type> appReturn = localParamsWithReturn.get(((Var)p.expr_).stellaident_);
+        Type appParams = localParamsWithParams.get(((Var)p.expr_).stellaident_);
+        if (p.listexpr_.get(0) instanceof Application) {
+          Type type = checkTupleApplication((Application) p.listexpr_.get(0));
+
+          if (appParams.getClass() == type.getClass()) {
+            return appReturn.get(0);
+          } else {
+            throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + appParams.getClass() + ", got " + type.getClass());
+          }
+        } else if (!compareTypes(appReturn.get(0), p.listexpr_.get(0))){
+          throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected Tuple, got " + p.listexpr_.get(0).getClass());
+        } else {
+          if (appParams instanceof TypeTuple && p.listexpr_.get(0) instanceof Tuple) {
+            ListExpr tupleExpr = ((Tuple) p.listexpr_.get(0)).listexpr_;
+            ListType tupleType = ((TypeTuple) appParams).listtype_;
+            if (!compareTypes(tupleType.get(0), tupleExpr.get(0))) {
+              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
+            } else if (!compareTypes(tupleType.get(1), tupleExpr.get(1))) {
+              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
+            }
+          }
+          return appReturn.get(0);
+        }
+      } else if (globalParamsWithReturn.containsKey(((Var)p.expr_).stellaident_)) {
         LinkedList<Type> appReturn = globalParamsWithReturn.get(((Var)p.expr_).stellaident_);
         Pair<String, Type> appParams = globalParamsWithParams.get(((Var)p.expr_).stellaident_);
         if (p.listexpr_.get(0) instanceof Application) {
@@ -131,6 +280,8 @@ public class VisitTypeCheck
           }
           return appReturn.get(0);
         }
+      } else {
+        throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): unknown variable " + ((Var)p.expr_).stellaident_);
       }
     }
     public boolean compareTypes(Type type, Expr expr) {
@@ -144,13 +295,15 @@ public class VisitTypeCheck
         return true;
       } else if (expr instanceof Tuple && type instanceof TypeTuple) {
         return true;
-      } else if (expr instanceof Var && params.containsKey(((Var) expr).stellaident_)) { // TODO maybe clarify
+      } else if (expr instanceof Var && params.containsKey(((Var) expr).stellaident_)) {
           Type t = params.get(((Var) expr).stellaident_);
           return t.getClass() == type.getClass();
       } else {
         return false;
       }
     }
+
+
 
     public R checkFunctionReturn(org.syntax.stella.Absyn.DeclFun p, A arg) {
       LinkedList<Type> localReturn = new LinkedList<>();
@@ -176,7 +329,6 @@ public class VisitTypeCheck
           } else if (expr instanceof Application) {
             expr = ((Application) expr).expr_;
           } else if (expr instanceof NatRec && (type instanceof TypeNat || type instanceof TypeBool)) {
-//            return null;
             return checkNatRec((NatRec) expr, type);
           } else if (expr instanceof Succ && type instanceof TypeNat) {
             return null;
@@ -184,12 +336,19 @@ public class VisitTypeCheck
             return null;
           } else if (expr instanceof Var) {
             if (!(((Var) expr).stellaident_.equals(localVar.a)) && !(globalParamsWithReturn.containsKey(((Var) expr).stellaident_))) {
-              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable" + ((Var) expr).stellaident_);
+              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable " + ((Var) expr).stellaident_);
             }
           } else if (expr instanceof Tuple && type instanceof TypeTuple) {
             return null;
           } else if (expr instanceof DotTuple && (type instanceof TypeNat || type instanceof TypeBool)) {
             return checkDotTuple((DotTuple) expr, type);
+          } else if (expr instanceof Match) {
+            if (params.containsKey(((Var)((Match) expr).expr_).stellaident_)) {
+              return checkMatch((Match) expr, params.get(((Var)((Match) expr).expr_).stellaident_), type);
+            } else {
+              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable " + ((Var)((Match) expr).expr_).stellaident_);
+            }
+
           } else {
             return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): expected " + type.getClass() + ", got " + expr.getClass());
           }
