@@ -302,9 +302,6 @@ public class VisitTypeCheck
         return false;
       }
     }
-
-
-
     public R checkFunctionReturn(org.syntax.stella.Absyn.DeclFun p, A arg) {
       LinkedList<Type> localReturn = new LinkedList<>();
       AParamDecl var = (AParamDecl) p.listparamdecl_.get(0);
@@ -333,6 +330,8 @@ public class VisitTypeCheck
           } else if (expr instanceof Succ && type instanceof TypeNat) {
             return null;
           } else if (expr instanceof If && type instanceof TypeBool) {
+            return null;
+          } else if (expr instanceof ConstUnit && type instanceof TypeUnit) {
             return null;
           } else if (expr instanceof Var) {
             if (!(((Var) expr).stellaident_.equals(localVar.a)) && !(globalParamsWithReturn.containsKey(((Var) expr).stellaident_))) {
