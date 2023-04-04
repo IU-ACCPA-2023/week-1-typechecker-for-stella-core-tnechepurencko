@@ -18,6 +18,17 @@ import java.util.Stack;
    Replace the R and A parameters with the desired return
    and context types.*/
 
+//class MakeError
+//{
+//  public static String UnknownVar(String name, String where) {
+//    return "TypeError in " + where + ": unknown variable " + name;
+//  }
+//
+//  public static String UnexpectedType(Type expected, Expr got, String where) {
+//    return "TypeError in " + where + ": expected " + expected.getClass() + ", got " + got.getClass();
+//  }
+//}
+
 public class VisitTypeCheck
 {
   LinkedList<String> localParams;
@@ -41,6 +52,13 @@ public class VisitTypeCheck
     this.localParamsWithReturn = new HashMap<>();
     this.localParamsWithParams = new HashMap<>();
   }
+
+  public static String UnknownVar(String name, String where) {
+    return "TypeError in " + where + ": unknown variable " + name;
+  }
+  public static String UnexpectedType(Object expected, Object got, String where) {
+    return "TypeError in " + where + ": expected " + expected.getClass() + ", got " + got.getClass();
+  }
   public class ProgramVisitor<R,A> implements org.syntax.stella.Absyn.Program.Visitor<R,A>
   {
     public R visit(org.syntax.stella.Absyn.AProgram p, A arg)
@@ -58,7 +76,7 @@ public class VisitTypeCheck
 
         if (x instanceof DeclFun) {
           AParamDecl apd = (AParamDecl) ((DeclFun) x).listparamdecl_.get(0);
-          Pair parameters = new Pair(apd.stellaident_, apd.type_);
+          Pair<String, Type> parameters = new Pair<>(apd.stellaident_, apd.type_);
           functions.put(((DeclFun) x).stellaident_, parameters);
         }
       }
@@ -94,9 +112,11 @@ public class VisitTypeCheck
 
     public R checkMatch(Match p, Type matchVarType, Type expectedType) {
       if (p.expr_ instanceof Var && !params.containsKey(((Var)p.expr_).stellaident_) && !localParams.contains(((Var)p.expr_).stellaident_)) {
-        return (R) ("TypeError in DeclVisitor.checkMatch(): unknown variable " + ((Var)p.expr_).stellaident_);
+        return (R) UnknownVar(((Var)p.expr_).stellaident_, "DeclVisitor.checkMatch()");
+//        return (R) ("TypeError in DeclVisitor.checkMatch(): unknown variable " + ((Var)p.expr_).stellaident_);
       } else if (!(matchVarType instanceof TypeSum)) {
-        return (R)("TypeError in DeclVisitor.checkMatch(): expected TypeSum, got " + matchVarType.getClass());
+        return (R) UnexpectedType("TypeSum", matchVarType, "DeclVisitor.checkMatch()");
+//        return (R)("TypeError in DeclVisitor.checkMatch(): expected TypeSum, got " + matchVarType.getClass());
       } else {
         AMatchCase amc1 = (AMatchCase) p.listmatchcase_.get(0);
         AMatchCase amc2 = (AMatchCase) p.listmatchcase_.get(1);
@@ -183,7 +203,8 @@ public class VisitTypeCheck
       } else {
         try {
           if (!checkMatchExpr(p.expr_, expectedType)) {
-            return (R) ("TypeError in DeclVisitor.checkMatch(): expected " + expectedType.getClass() + ", got " + p.expr_.getClass());
+            return (R) UnexpectedType(expectedType, p.expr_, "DeclVisitor.checkMatch()");
+//            return (R) ("TypeError in DeclVisitor.checkMatch(): expected " + expectedType.getClass() + ", got " + p.expr_.getClass());
           }
         } catch (Exception e) {
           return (R) e.getMessage();
@@ -217,9 +238,11 @@ public class VisitTypeCheck
         try {
           Type actualType = checkTupleApplication((Application) p.expr_);
           if (!(actualType instanceof TypeTuple)) {
-            return (R) ("TypeError in DeclVisitor.checkDotTuple(): expected TypeTuple, got " + actualType.getClass());
+            return (R) UnexpectedType("TypeTuple", actualType, "DeclVisitor.checkDotTuple()");
+//            return (R) ("TypeError in DeclVisitor.checkDotTuple(): expected TypeTuple, got " + actualType.getClass());
           } else if (expectedType.getClass() != ((TypeTuple) actualType).listtype_.get(p.integer_ - 1).getClass()){
-            return (R) ("TypeError in DeclVisitor.checkDotTuple(): expected " + expectedType.getClass() + ", got " + ((TypeTuple) actualType).listtype_.get(p.integer_).getClass());
+            return (R) UnexpectedType(expectedType, ((TypeTuple) actualType).listtype_.get(p.integer_), "DeclVisitor.checkDotTuple()");
+//            return (R) ("TypeError in DeclVisitor.checkDotTuple(): expected " + expectedType.getClass() + ", got " + ((TypeTuple) actualType).listtype_.get(p.integer_).getClass());
           }
           return null;
         } catch (Exception e) {
@@ -239,18 +262,22 @@ public class VisitTypeCheck
           if (appParams.getClass() == type.getClass()) {
             return appReturn.get(0);
           } else {
-            throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + appParams.getClass() + ", got " + type.getClass());
+            throw new Exception(UnexpectedType(appParams, type, "DeclVisitor.checkTupleApplication()"));
+//            throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + appParams.getClass() + ", got " + type.getClass());
           }
         } else if (!compareTypes(appReturn.get(0), p.listexpr_.get(0))){
-          throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected Tuple, got " + p.listexpr_.get(0).getClass());
+          throw new Exception(UnexpectedType("Tuple", p.listexpr_.get(0), "DeclVisitor.checkTupleApplication()"));
+//          throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected Tuple, got " + p.listexpr_.get(0).getClass());
         } else {
           if (appParams instanceof TypeTuple && p.listexpr_.get(0) instanceof Tuple) {
             ListExpr tupleExpr = ((Tuple) p.listexpr_.get(0)).listexpr_;
             ListType tupleType = ((TypeTuple) appParams).listtype_;
             if (!compareTypes(tupleType.get(0), tupleExpr.get(0))) {
-              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
+              throw new Exception(UnexpectedType(tupleType, tupleExpr.get(0), "DeclVisitor.checkTupleApplication()"));
+//              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
             } else if (!compareTypes(tupleType.get(1), tupleExpr.get(1))) {
-              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
+              throw new Exception(UnexpectedType(tupleType, tupleExpr.get(1), "DeclVisitor.checkTupleApplication()"));
+//              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(1).getClass());
             }
           }
           return appReturn.get(0);
@@ -264,24 +291,29 @@ public class VisitTypeCheck
           if (appParams.b.getClass() == type.getClass()) {
             return appReturn.get(0);
           } else {
-            throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + appParams.b.getClass() + ", got " + type.getClass());
+            throw new Exception(UnexpectedType(appParams.b, type, "DeclVisitor.checkTupleApplication()"));
+//            throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + appParams.b.getClass() + ", got " + type.getClass());
           }
         } else if (!compareTypes(appReturn.get(0), p.listexpr_.get(0))){
-          throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected Tuple, got " + p.listexpr_.get(0).getClass());
+          throw new Exception(UnexpectedType("Tuple", p.listexpr_.get(0), "DeclVisitor.checkTupleApplication()"));
+//          throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected Tuple, got " + p.listexpr_.get(0).getClass());
         } else {
           if (appParams.b instanceof TypeTuple && p.listexpr_.get(0) instanceof Tuple) {
             ListExpr tupleExpr = ((Tuple) p.listexpr_.get(0)).listexpr_;
             ListType tupleType = ((TypeTuple) appParams.b).listtype_;
             if (!compareTypes(tupleType.get(0), tupleExpr.get(0))) {
-              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
+              throw new Exception(UnexpectedType(tupleType.get(0), tupleExpr.get(0), "DeclVisitor.checkTupleApplication()"));
+//              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
             } else if (!compareTypes(tupleType.get(1), tupleExpr.get(1))) {
-              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
+              throw new Exception(UnexpectedType(tupleType.get(0), tupleExpr.get(0), "DeclVisitor.checkTupleApplication()"));
+//              throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): expected " + tupleType.get(0) + ", got " + tupleExpr.get(0).getClass());
             }
           }
           return appReturn.get(0);
         }
       } else {
-        throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): unknown variable " + ((Var)p.expr_).stellaident_);
+        throw new Exception(UnknownVar(((Var)p.expr_).stellaident_, "DeclVisitor.checkTupleApplication()"));
+//        throw new Exception("TypeError in DeclVisitor.checkTupleApplication(): unknown variable " + ((Var)p.expr_).stellaident_);
       }
     }
     public boolean compareTypes(Type type, Expr expr) {
@@ -335,7 +367,8 @@ public class VisitTypeCheck
             return null;
           } else if (expr instanceof Var) {
             if (!(((Var) expr).stellaident_.equals(localVar.a)) && !(globalParamsWithReturn.containsKey(((Var) expr).stellaident_))) {
-              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable " + ((Var) expr).stellaident_);
+              return (R) (UnknownVar(((Var) expr).stellaident_, "DeclVisitor.checkFunctionReturn()"));
+//              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable " + ((Var) expr).stellaident_);
             }
           } else if (expr instanceof Tuple && type instanceof TypeTuple) {
             return null;
@@ -345,11 +378,13 @@ public class VisitTypeCheck
             if (params.containsKey(((Var)((Match) expr).expr_).stellaident_)) {
               return checkMatch((Match) expr, params.get(((Var)((Match) expr).expr_).stellaident_), type);
             } else {
-              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable " + ((Var)((Match) expr).expr_).stellaident_);
+              return (R) (UnknownVar(((Var)((Match) expr).expr_).stellaident_, "DeclVisitor.checkFunctionReturn()"));
+//              return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): unknown variable " + ((Var)((Match) expr).expr_).stellaident_);
             }
 
           } else {
-            return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): expected " + type.getClass() + ", got " + expr.getClass());
+            return (R) UnexpectedType(type, expr, "DeclVisitor.checkFunctionReturn()");
+//            return (R) ("TypeError in DeclVisitor.checkFunctionReturn(): expected " + type.getClass() + ", got " + expr.getClass());
           }
         }
       }
@@ -369,14 +404,15 @@ public class VisitTypeCheck
         return res;
       }
 
-      if (p.returntype_ instanceof SomeReturnType) {
-        SomeReturnType someReturnType = (SomeReturnType) p.returntype_;
+      if (p.returntype_ instanceof SomeReturnType someReturnType) {
         if (someReturnType.type_ instanceof TypeFun && !(p.expr_ instanceof Abstraction) && !(p.expr_ instanceof Var)) {
-          return (R) ("TypeError in DeclVisitor.visit(): expected Abstraction, got " + p.expr_.getClass());
+          return (R) UnexpectedType("Abstraction", p.expr_, "DeclVisitor.visit(DeclFun)");
+//          return (R) ("TypeError in DeclVisitor.visit(): expected Abstraction, got " + p.expr_.getClass());
         } else if (someReturnType.type_ instanceof TypeNat) {
           if (!(p.expr_ instanceof NatRec) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var) && !(p.expr_ instanceof Application)) {
             if (p.expr_ instanceof Application) {
-              return (R) ("TypeError in DeclVisitor.visit(): expected NatRec, got " + p.expr_.getClass());
+              return (R) UnexpectedType("NatRec", p.expr_, "DeclVisitor.visit(DeclFun)");
+//              return (R) ("TypeError in DeclVisitor.visit(): expected NatRec, got " + p.expr_.getClass());
             }
           } // TODO else if .expr_ instanceof DotTuple
         }
@@ -751,11 +787,11 @@ public class VisitTypeCheck
         x.accept(new org.stella.typecheck.VisitTypeCheck.ParamDeclVisitor<R,A>(), arg);
       }
 
-      if (p.expr_ instanceof Application && ((Application) p.expr_).expr_ instanceof Var) {
-        Var v = (Var) ((Application) p.expr_).expr_;
+      if (p.expr_ instanceof Application && ((Application) p.expr_).expr_ instanceof Var v) {
         for (var pair:abstractionParams) {
           if (pair.a.equals(v.stellaident_) && !(pair.b instanceof TypeFun)) {
-            return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + pair.b.getClass());
+            return (R) UnexpectedType("TypeFun", pair.b, "DeclVisitor.visit(Abstraction)");
+//            return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + pair.b.getClass());
           }
         }
       }
@@ -767,10 +803,12 @@ public class VisitTypeCheck
         var cv = callsVars.peek();
         var ap = abstractionParams.peek();
         if (ap.b instanceof TypeNat && !(cv instanceof ConstInt) && !(cv instanceof Var)) {
-          return (R) ("TypeError in DeclVisitor.visit(): expected ConstInt, got " + cv.getClass());
+          return (R) UnexpectedType("ConstInt", cv, "DeclVisitor.visit(Abstraction)");
+//          return (R) ("TypeError in DeclVisitor.visit(): expected ConstInt, got " + cv.getClass());
         } else if (ap.b instanceof TypeBool && !((cv instanceof ConstTrue) || (cv instanceof ConstFalse))) {
           if (cv instanceof Abstraction && !(((Abstraction) cv).expr_ instanceof If)) {
-            return (R) ("TypeError in DeclVisitor.visit(): expected TypeBool, got " + cv.getClass());
+            return (R) UnexpectedType("TypeBool", cv, "DeclVisitor.visit(Abstraction)");
+//            return (R) ("TypeError in DeclVisitor.visit(): expected TypeBool, got " + cv.getClass());
           }
         }
       }
@@ -853,10 +891,12 @@ public class VisitTypeCheck
       if (p.expr_ instanceof Var) {
         String name = ((Var)p.expr_).stellaident_;
         if (params.containsKey(name) && !(params.get(name) instanceof TypeFun)) { //&& !(params.get(name) instanceof TypeFun)
-          return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + params.get(name).getClass());
+          return (R) UnexpectedType("TypeFun", params.get(name), "DeclVisitor.visit(Application)");
+//          return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + params.get(name).getClass());
         }
       } else if (p.expr_ instanceof Succ) {
-        return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + p.expr_.getClass());
+        return (R) UnexpectedType("TypeFun", p.expr_, "DeclVisitor.visit(Application)");
+//        return (R) ("TypeError in DeclVisitor.visit(): expected TypeFun, got " + p.expr_.getClass());
       }
 
       if (p.expr_ instanceof Var) {
@@ -865,10 +905,10 @@ public class VisitTypeCheck
           if (type instanceof TypeFun) {
             var argOfInnerFun = ((TypeFun) type).listtype_.get(0);
             if (p.listexpr_.get(0) instanceof Abstraction) {
-              if (((Abstraction)p.listexpr_.get(0)).listparamdecl_.get(0) instanceof AParamDecl) {
-                AParamDecl apd = (AParamDecl) ((Abstraction)p.listexpr_.get(0)).listparamdecl_.get(0);
+              if (((Abstraction) p.listexpr_.get(0)).listparamdecl_.get(0) instanceof AParamDecl apd) {
                 if (apd.type_.getClass() != argOfInnerFun.getClass()) {
-                  String ret = "TypeError in DeclVisitor.visit(): expected" + apd.type_.getClass() + ", got" + argOfInnerFun.getClass();
+                  String ret = UnexpectedType(apd.type_, argOfInnerFun, "DeclVisitor.visit(Application)");
+//                  String ret = "TypeError in DeclVisitor.visit(): expected" + apd.type_.getClass() + ", got" + argOfInnerFun.getClass();
                   return (R) (ret);
                 }
               }
@@ -952,15 +992,17 @@ public class VisitTypeCheck
     public R visit(org.syntax.stella.Absyn.Succ p, A arg)
     { /* Code for Succ goes here */
       if (!(p.expr_ instanceof ConstInt) && !(p.expr_ instanceof Succ) && !(p.expr_ instanceof Var)) {
-        if (p.expr_ instanceof If) {
-          If ifExpr = (If) p.expr_;
+        if (p.expr_ instanceof If ifExpr) {
           if (!(ifExpr.expr_2 instanceof Succ) && !(ifExpr.expr_2 instanceof ConstInt)) {
-            return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + ifExpr.expr_2.getClass());
+            return (R) UnexpectedType("ConstInt", ifExpr.expr_2, "DeclVisitor.visit(Succ)");
+//            return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + ifExpr.expr_2.getClass());
           } else if (!(ifExpr.expr_3 instanceof Succ) && !(ifExpr.expr_3 instanceof ConstInt)) {
-            return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + ifExpr.expr_2.getClass());
+            return (R) UnexpectedType("ConstInt", ifExpr.expr_3, "DeclVisitor.visit(Succ)");
+//            return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + ifExpr.expr_2.getClass());
           }
         } else {
-          return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + p.expr_.getClass());
+          return (R) UnexpectedType("ConstInt", p.expr_, "DeclVisitor.visit(Succ)");
+//          return (R) ("TypeError in ExprVisitor.visit(): expected ConstInt, got " + p.expr_.getClass());
         }
       }
       var res = p.expr_.accept(new org.stella.typecheck.VisitTypeCheck.ExprVisitor<R,A>(), arg);
@@ -1028,7 +1070,8 @@ public class VisitTypeCheck
     public R visit(org.syntax.stella.Absyn.Var p, A arg)
     { /* Code for Var goes here */
       if (!params.containsKey(p.stellaident_) && !globalParamsWithReturn.containsKey(p.stellaident_)) {
-        return (R) ("TypeError in ExprVisitor.visit(): unknown variable " + p.stellaident_);
+        return (R) UnknownVar(p.stellaident_, "ExprVisitor.visit()");
+//        return (R) ("TypeError in ExprVisitor.visit(): unknown variable " + p.stellaident_);
       }
 //      if (functions.containsKey(p.stellaident_)) {
 //        Type type = functions.get(p.stellaident_).b;
